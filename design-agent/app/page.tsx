@@ -1,38 +1,67 @@
 "use client";
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef, useState, useEffect } from "react";
 import { FloatingChat } from "@/components/FloatingChat";
 import { SandpackPreviewArea } from "@/components/SandpackPreview";
 import type { FileSnapshot, AgentResponse } from "@/lib/types";
+
+interface ClickContext {
+  selector: string;
+  tag: string;
+  text: string;
+  id?: string;
+}
 
 export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [lastResponse, setLastResponse] = useState<string>("");
   const [pendingFiles, setPendingFiles] = useState<FileSnapshot | null>(null);
   const currentFilesRef = useRef<FileSnapshot>({});
+  const clickContextRef = useRef<ClickContext | null>(null);
 
-  /** Called by SandpackPreviewArea when it reads the initial snapshot */
+  // Listen for click events from the Sandpack preview iframe
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "preview:click") {
+        clickContextRef.current = {
+          selector: event.data.selector,
+          tag: event.data.tag,
+          text: event.data.text,
+          id: event.data.id,
+        };
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
   const handleGetFiles = useCallback((files: FileSnapshot) => {
     currentFilesRef.current = files;
   }, []);
 
-  /** Called after Sandpack applies our file changes */
   const handleApplied = useCallback(() => {
     setPendingFiles(null);
   }, []);
 
-  /** Send user message to the agent */
   const handleSend = useCallback(
     async (message: string) => {
       setLoading(true);
       setLastResponse("");
+
+      // Enrich message with click context if available
+      const ctx = clickContextRef.current;
+      let enrichedMessage = message;
+      if (ctx) {
+        enrichedMessage = `[Clicked on <${ctx.tag}>${ctx.text}</${ctx.tag}> at \`${ctx.selector}\`]\n\n${message}`;
+        clickContextRef.current = null; // consume
+      }
 
       try {
         const res = await fetch("/api/agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            message,
+            message: enrichedMessage,
             files: currentFilesRef.current,
           }),
         });
@@ -50,10 +79,8 @@ export default function HomePage() {
           return;
         }
 
-        // Show assistant's text response
         setLastResponse(data.response);
 
-        // Push changed files to Sandpack
         if (data.changed.length > 0) {
           setPendingFiles(data.files);
         }
