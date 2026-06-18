@@ -13,6 +13,7 @@ import type { FileSnapshot } from "@/lib/types";
 /** Default starter project */
 const DEFAULT_FILES: Record<string, string> = {
   "/App.tsx": `import "./styles.css";
+import "./click-tracker";
 
 export default function App() {
   return (
@@ -26,6 +27,33 @@ export default function App() {
 body { margin: 0; font-family: system-ui, sans-serif; }
 .app { padding: 2rem; text-align: center; }
 h1 { color: #333; }
+`,
+  "/click-tracker.ts": `// Sends click info to parent window for AI context
+document.addEventListener("click", (e: MouseEvent) => {
+  const el = e.target as HTMLElement;
+  if (!el) return;
+
+  const parts: string[] = [];
+  let cur: HTMLElement | null = el;
+  while (cur && cur !== document.body && cur !== document.documentElement) {
+    let sel = cur.tagName.toLowerCase();
+    if (cur.id) { parts.unshift("#" + cur.id); break; }
+    if (cur.className && typeof cur.className === "string") {
+      const cls = cur.className.trim().split(/\s+/).slice(0, 2).join(".");
+      if (cls) sel += "." + cls;
+    }
+    parts.unshift(sel);
+    cur = cur.parentElement;
+  }
+
+  window.parent.postMessage({
+    type: "preview:click",
+    selector: parts.join(" > ") || el.tagName.toLowerCase(),
+    tag: el.tagName.toLowerCase(),
+    text: (el.textContent || "").trim().slice(0, 100),
+    id: el.id || undefined,
+  }, "*");
+}, true);
 `,
 };
 
