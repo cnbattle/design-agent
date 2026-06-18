@@ -15,17 +15,11 @@ const DEFAULT_FILES: Record<string, string> = {
   "/App.tsx": `import "./styles.css";
 
 export default function App() {
-  return (
-    <div className="app">
-      <h1>Hello, Design Agent</h1>
-      <p>Ask the AI to change this design!</p>
-    </div>
-  );
+  return <div className="empty-state">Start designing</div>;
 }`,
-  "/styles.css": `* { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; }
-.app { padding: 2rem; text-align: center; }
-h1 { color: #333; }
+  "/styles.css": `* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #fafafa; color: #999; }
+.empty-state { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 18px; }
 `,
 };
 
@@ -90,6 +84,9 @@ export function SandpackPreviewArea({
   onGetFiles,
 }: SandpackPreviewAreaProps) {
   const [files, setFiles] = React.useState(DEFAULT_FILES);
+  const [showEditor, setShowEditor] = React.useState(false);
+
+  const toggleEditor = React.useCallback(() => setShowEditor((v) => !v), []);
 
   return (
     <SandpackProvider
@@ -106,14 +103,39 @@ export function SandpackPreviewArea({
       }}
     >
       <SandpackLayout>
-        <SandpackCodeEditor
-          showTabs
-          style={{ height: "calc(100vh - 36px)" }}
-        />
+        {showEditor && (
+          <SandpackCodeEditor
+            showTabs
+            style={{ height: "calc(100vh - 36px)" }}
+          />
+        )}
         <SandpackPreview
           style={{ height: "calc(100vh - 36px)" }}
         />
       </SandpackLayout>
+
+      {/* Toggle button */}
+      <button
+        onClick={toggleEditor}
+        title={showEditor ? "Hide code editor" : "Show code editor"}
+        style={{
+          position: "fixed",
+          top: 8,
+          left: 8,
+          zIndex: 60,
+          padding: "4px 10px",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          background: "rgba(255,255,255,0.9)",
+          color: "#374151",
+          fontSize: 12,
+          cursor: "pointer",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        {showEditor ? "✕ Code" : "</> Code"}
+      </button>
+
       <FileApplier
         pendingFiles={pendingFiles}
         onApplied={onApplied ?? (() => {})}
