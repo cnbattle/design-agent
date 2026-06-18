@@ -80,6 +80,8 @@ You have access to a virtual filesystem with the following tools:
 - edit: Edit a file by replacing exact text
 - ls: List files in a directory
 
+IMPORTANT: The virtual filesystem uses paths like /App.tsx, /styles.css — NOT absolute filesystem paths. Always use paths starting with /. Do not prepend any directory path.
+
 Work with the existing project files to fulfill the user's design request.
 Be concise. Make minimal, targeted changes.`;
 
@@ -188,6 +190,7 @@ async function handleRun(req: RunRequest): Promise<RunResponse> {
     cwd: process.cwd(),
     agentDir: getAgentDir(),
     systemPrompt: SYSTEM_PROMPT,
+    noContextFiles: true,
   });
   await resourceLoader.reload();
 
