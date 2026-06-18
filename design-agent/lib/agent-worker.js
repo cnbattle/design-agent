@@ -54,6 +54,20 @@ class VirtualFS {
         return [...this._changed];
     }
 }
+const DANGEROUS_PATTERNS = [
+  { pattern: /eval\s*\(/, hint: "eval()" },
+  { pattern: /document\.cookie/, hint: "document.cookie" },
+  { pattern: /new\s+Function\s*\(/, hint: "new Function()" },
+  { pattern: /window\.eval/, hint: "window.eval" },
+];
+
+function checkDangerous(content) {
+  for (const { pattern, hint } of DANGEROUS_PATTERNS) {
+    if (pattern.test(content)) return hint;
+  }
+  return null;
+}
+
 const SYSTEM_PROMPT = `You are a design assistant inside a web-based preview environment.
 
 You have access to a virtual filesystem with the following tools:
@@ -114,6 +128,10 @@ async function handleRun(req) {
             content: Type.String({ description: "File content" }),
         }),
         execute: async (_id, params) => {
+            const danger = checkDangerous(params.content);
+            if (danger) {
+                return { content: [{ type: "text", text: `BLOCKED: ${danger} detected in ${params.path}. Remove it.` }], details: {} };
+            }
             fs.writeFile(params.path, params.content);
             return { content: [{ type: "text", text: `Written ${params.path}` }], details: {} };
         },
@@ -127,6 +145,10 @@ async function handleRun(req) {
             newStr: Type.String({ description: "Replacement text" }),
         }),
         execute: async (_id, params) => {
+            const danger = checkDangerous(params.newStr);
+            if (danger) {
+                return { content: [{ type: "text", text: `BLOCKED: ${danger} detected in replacement. Remove it.` }], details: {} };
+            }
             const ok = fs.editFile(params.path, params.oldStr, params.newStr);
             return {
                 content: [{ type: "text", text: ok ? `Edited ${params.path}` : `Failed: oldStr not found in ${params.path}` }],
