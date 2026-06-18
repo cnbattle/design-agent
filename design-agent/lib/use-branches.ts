@@ -10,13 +10,16 @@ export interface Branch {
   timestamp: number;
 }
 
-export function useBranches(initialFiles: FileSnapshot) {
-  const [branches, setBranches] = useState<Branch[]>([
-    { id: "main", name: "Main", files: initialFiles, timestamp: Date.now() },
-  ]);
-  const [activeId, setActiveId] = useState("main");
+export function useBranches() {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  const active = branches.find((b) => b.id === activeId);
+  const active = activeId ? branches.find((b) => b.id === activeId) : null;
+
+  const initMain = useCallback((files: FileSnapshot) => {
+    setBranches([{ id: "main", name: "Main", files, timestamp: Date.now() }]);
+    setActiveId("main");
+  }, []);
 
   const saveBranch = useCallback((name: string, files: FileSnapshot) => {
     const id = "b-" + Date.now().toString(36);
@@ -39,5 +42,5 @@ export function useBranches(initialFiles: FileSnapshot) {
     [branches]
   );
 
-  return { branches, activeId, active, saveBranch, switchBranch };
+  return { branches, activeId, active, initMain, saveBranch, switchBranch };
 }

@@ -3,6 +3,8 @@
 import React, { useCallback, useRef, useState, useEffect } from "react";
 import { FloatingChat } from "@/components/FloatingChat";
 import { SandpackPreviewArea } from "@/components/SandpackPreview";
+import { BranchBar } from "@/components/BranchBar";
+import { useBranches } from "@/lib/use-branches";
 import type { FileSnapshot, AgentResponse } from "@/lib/types";
 
 interface ClickContext {
@@ -18,6 +20,7 @@ export default function HomePage() {
   const [pendingFiles, setPendingFiles] = useState<FileSnapshot | null>(null);
   const currentFilesRef = useRef<FileSnapshot>({});
   const clickContextRef = useRef<ClickContext | null>(null);
+  const branches = useBranches();
 
   // Listen for click events from the Sandpack preview iframe
   useEffect(() => {
@@ -37,7 +40,10 @@ export default function HomePage() {
 
   const handleGetFiles = useCallback((files: FileSnapshot) => {
     currentFilesRef.current = files;
-  }, []);
+    if (branches.branches.length === 0 && Object.keys(files).length > 0) {
+      branches.initMain(files);
+    }
+  }, [branches]);
 
   const handleApplied = useCallback(() => {
     setPendingFiles(null);
@@ -84,6 +90,11 @@ export default function HomePage() {
         if (data.changed.length > 0) {
           setPendingFiles(data.files);
         }
+
+        // Refresh current files ref after agent response
+        if (data.files) {
+          currentFilesRef.current = data.files;
+        }
       } catch (err) {
         setLastResponse(
           `Request failed: ${
@@ -97,17 +108,43 @@ export default function HomePage() {
     []
   );
 
+  const handleSwitchBranch = useCallback(
+    (id: string) => {
+      const files = branches.switchBranch(id);
+      if (files) {
+        currentFilesRef.current = files;
+        setPendingFiles(files);
+      }
+    },
+    [branches]
+  );
+
+  const handleSaveVariant = useCallback(
+    (name: string) => {
+      branches.saveBranch(name, currentFilesRef.current);
+    },
+    [branches]
+  );
+
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative" }}>
-      <SandpackPreviewArea
-        pendingFiles={pendingFiles}
-        onApplied={handleApplied}
-        onGetFiles={handleGetFiles}
-      />
-      <FloatingChat
-        onSend={handleSend}
-        loading={loading}
-        lastResponse={lastResponse}
+    <div style={{ width: "100vw", height: "100vh", position: "relative", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, position: "relative" }}>
+        <SandpackPreviewArea
+          pendingFiles={pendingFiles}
+          onApplied={handleApplied}
+          onGetFiles={handleGetFiles}
+        />
+        <FloatingChat
+          onSend={handleSend}
+          loading={loading}
+          lastResponse={lastResponse}
+        />
+      </div>
+      <BranchBar
+        branches={branches.branches}
+        activeId={branches.activeId}
+        onSwitch={handleSwitchBranch}
+        onSave={handleSaveVariant}
       />
     </div>
   );
