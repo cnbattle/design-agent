@@ -65,19 +65,23 @@ You have access to a virtual filesystem with the following tools:
 Work with the existing project files to fulfill the user's design request.
 Be concise. Make minimal, targeted changes.`;
 async function handleRun(req) {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!process.env.DEEPSEEK_API_KEY && !process.env.ANTHROPIC_API_KEY) {
         return {
             type: "result",
             files: req.files,
             changed: [],
             response: "",
-            error: "ANTHROPIC_API_KEY not set. Add it to .env.local to use the AI agent.",
+            error: "No API key set. Add DEEPSEEK_API_KEY or ANTHROPIC_API_KEY to .env.local",
         };
     }
     const authStorage = AuthStorage.create();
     const modelRegistry = ModelRegistry.create(authStorage);
     const fs = new VirtualFS(req.files);
-    const model = getModel("anthropic", "claude-sonnet-4-20250514") ??
+    // Try DeepSeek first if its key is set, fall back to Anthropic
+    const model = (process.env.DEEPSEEK_API_KEY
+        ? getModel("deepseek", "deepseek-v4-flash")
+        : undefined) ??
+        getModel("anthropic", "claude-sonnet-4-20250514") ??
         (await modelRegistry.getAvailable())[0];
     if (!model) {
         return {
@@ -85,7 +89,7 @@ async function handleRun(req) {
             files: fs.snapshot(),
             changed: [],
             response: "",
-            error: "No AI model available. Configure ANTHROPIC_API_KEY or another provider.",
+            error: "No AI model available. Check your API key configuration.",
         };
     }
     const readTool = defineTool({
