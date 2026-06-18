@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.env.local
+.env
+*.log
+.worktrees/
+design-agent/node_modules/
+design-agent/.next/
