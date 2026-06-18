@@ -226,7 +226,7 @@ async function handleRun(req: RunRequest): Promise<RunResponse> {
 
   const { session } = await createAgentSession({
     model,
-    thinkingLevel: "low",
+    thinkingLevel: "off",
     authStorage,
     modelRegistry,
     resourceLoader,
