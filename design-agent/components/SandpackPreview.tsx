@@ -4,15 +4,25 @@ import React from "react";
 import {
   SandpackProvider,
   SandpackLayout,
-  SandpackCodeEditor,
   SandpackPreview,
   useSandpack,
 } from "@codesandbox/sandpack-react";
 import type { FileSnapshot } from "@/lib/types";
 
 /** Default starter project */
+const LS_KEY = "da-files";
+
+function loadFiles(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {};
+}
+
 const DEFAULT_FILES: Record<string, string> = {
   "/App.tsx": `import "./styles.css";
+import "./click-tracker";
 
 export default function App() {
   return <div className="empty-state">Start designing</div>;
@@ -21,33 +31,40 @@ export default function App() {
 body { font-family: system-ui, sans-serif; background: #fafafa; color: #999; }
 .empty-state { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 18px; }
 `,
+  "/click-tracker.ts": `// Sends click info to parent window for AI context
+document.addEventListener("click", (e: MouseEvent) => {
+  const el = e.target as HTMLElement;
+  if (!el) return;
+
+  const parts: string[] = [];
+  let cur: HTMLElement | null = el;
+  while (cur && cur !== document.body && cur !== document.documentElement) {
+    let sel = cur.tagName.toLowerCase();
+    if (cur.id) {
+      sel = "#" + cur.id;
+      parts.unshift(sel);
+      break;
+    }
+    if (cur.className && typeof cur.className === "string") {
+      const cls = cur.className.trim().split(/\s+/).slice(0, 2).join(".");
+      if (cls) sel += "." + cls;
+    }
+    parts.unshift(sel);
+    cur = cur.parentElement;
+  }
+
+  window.parent.postMessage({
+    type: "preview:click",
+    selector: parts.join(" > ") || el.tagName.toLowerCase(),
+    tag: el.tagName.toLowerCase(),
+    text: (el.textContent || "").trim().slice(0, 100),
+    id: el.id || undefined,
+  }, "*");
+}, true);
+`,
 };
 
-/**
- * Invisible component that bridges file changes to Sandpack's updateFile.
- * This triggers HMR without full recompile.
- */
-function FileApplier({
-  pendingFiles,
-  onApplied,
-}: {
-  pendingFiles: FileSnapshot | null;
-  onApplied: () => void;
-}) {
-  const { sandpack } = useSandpack();
-
-  React.useEffect(() => {
-    if (!pendingFiles) return;
-    for (const [path, content] of Object.entries(pendingFiles)) {
-      sandpack.updateFile(path, content);
-    }
-    onApplied();
-  }, [pendingFiles, sandpack, onApplied]);
-
-  return null;
-}
-
-/** Separately-defined component for reading initial Sandpack snapshot */
+/** Read initial file snapshot from Sandpack */
 function SnapshotReader({
   onGetFiles,
 }: {
@@ -62,7 +79,6 @@ function SnapshotReader({
       snapshot[path] = f.code;
     }
     onGetFiles(snapshot);
-    // Only once on mount — deps intentionally empty
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -70,6 +86,8 @@ function SnapshotReader({
 }
 
 interface SandpackPreviewAreaProps {
+  /** Server-provided initial files (from persistence) */
+  initialFiles?: FileSnapshot;
   /** Files to apply — parent sets this to push changes */
   pendingFiles: FileSnapshot | null;
   /** Called after files are applied to Sandpack */
@@ -79,21 +97,37 @@ interface SandpackPreviewAreaProps {
 }
 
 export function SandpackPreviewArea({
+  initialFiles,
   pendingFiles,
   onApplied,
   onGetFiles,
 }: SandpackPreviewAreaProps) {
-  const [files, setFiles] = React.useState(DEFAULT_FILES);
-  const [showEditor, setShowEditor] = React.useState(false);
+  const [files, setFiles] = React.useState(() =>
+    initialFiles && Object.keys(initialFiles).length > 0
+      ? initialFiles
+      : DEFAULT_FILES
+  );
 
-  const toggleEditor = React.useCallback(() => setShowEditor((v) => !v), []);
+  // Merge pending files into sandpack files when they arrive
+  React.useEffect(() => {
+    if (!pendingFiles) return;
+    setFiles((prev) => ({ ...prev, ...pendingFiles }));
+    onApplied?.();
+  }, [pendingFiles, onApplied]);
+
+  // Persist files to localStorage
+  React.useEffect(() => {
+    if (Object.keys(files).length > 0) {
+      try { localStorage.setItem(LS_KEY, JSON.stringify(files)); } catch {}
+    }
+  }, [files]);
 
   return (
     <SandpackProvider
       template="react-ts"
       files={files}
       options={{
-        visibleFiles: ["/App.tsx", "/styles.css"],
+        visibleFiles: [],
         activeFile: "/App.tsx",
         recompileMode: "immediate",
         recompileDelay: 300,
@@ -103,43 +137,11 @@ export function SandpackPreviewArea({
       }}
     >
       <SandpackLayout>
-        {showEditor && (
-          <SandpackCodeEditor
-            showTabs
-            style={{ height: "calc(100vh - 36px)" }}
-          />
-        )}
         <SandpackPreview
-          style={{ height: "calc(100vh - 36px)" }}
+          style={{ height: "100vh", width: "100vw" }}
         />
       </SandpackLayout>
 
-      {/* Toggle button */}
-      <button
-        onClick={toggleEditor}
-        title={showEditor ? "Hide code editor" : "Show code editor"}
-        style={{
-          position: "fixed",
-          top: 8,
-          left: 8,
-          zIndex: 60,
-          padding: "4px 10px",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          background: "rgba(255,255,255,0.9)",
-          color: "#374151",
-          fontSize: 12,
-          cursor: "pointer",
-          backdropFilter: "blur(4px)",
-        }}
-      >
-        {showEditor ? "✕ Code" : "</> Code"}
-      </button>
-
-      <FileApplier
-        pendingFiles={pendingFiles}
-        onApplied={onApplied ?? (() => {})}
-      />
       <SnapshotReader onGetFiles={onGetFiles} />
     </SandpackProvider>
   );

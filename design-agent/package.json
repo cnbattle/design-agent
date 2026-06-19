@@ -12,6 +12,7 @@
     "@codesandbox/sandpack-react": "^2.19.0",
     "@earendil-works/pi-ai": "^0.79.6",
     "@earendil-works/pi-coding-agent": "^0.79.6",
+    "@earendil-works/pi-web-ui": "^0.75.3",
     "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

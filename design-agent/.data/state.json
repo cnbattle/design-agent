@@ -1,0 +1,18 @@
+{
+  "files": {
+    "/App.tsx": "import \"./styles.css\";\n\nexport default function App() {\n  return <h1>Hello</h1>;\n}",
+    "/styles.css": "* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { font-family: system-ui, sans-serif; background: #e0e0e0; }\nh1 { color: blue; }"
+  },
+  "branches": [
+    {
+      "id": "main",
+      "name": "Main",
+      "files": {
+        "/App.tsx": "...",
+        "/styles.css": "..."
+      },
+      "timestamp": 1000
+    }
+  ],
+  "activeId": "main"
+}

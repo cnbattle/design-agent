@@ -21,6 +21,16 @@ body {
   overflow: hidden;
 }
 
+@media (max-width: 640px) {
+  .chat-container {
+    width: calc(100vw - 16px);
+    right: 8px;
+    bottom: 8px;
+    max-height: 40vh;
+    font-size: 14px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   .chat-container {
     background: #1a1a2e;

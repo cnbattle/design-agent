@@ -1,17 +1,23 @@
 import { fork } from "child_process";
 import { join } from "path";
 import type { AgentRequest } from "@/lib/types";
+import { saveState } from "@/lib/state";
 
 /**
  * POST /api/agent
  *
- * Spawns a child process to run the Pi agent (avoids webpack bundling issues).
+ * Spawns a child process to run the Pi agent.
+ * Saves state to disk after each successful run.
  */
 export async function POST(request: Request): Promise<Response> {
   const startTime = Date.now();
 
   try {
-    const body = (await request.json()) as AgentRequest;
+    const body = (await request.json()) as AgentRequest & {
+      branches?: any[];
+      activeId?: string | null;
+      messages?: { role: string; text: string }[];
+    };
 
     if (!body.message || typeof body.message !== "string") {
       return Response.json({ error: "message is required" }, { status: 400 });
@@ -21,7 +27,6 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ error: "files is required" }, { status: 400 });
     }
 
-    // Spawn the pre-compiled worker process (avoids tsx/pi-ai bundling issues)
     const workerPath = join(process.cwd(), "lib", "agent-worker.js");
 
     const result = await new Promise<any>((resolve, reject) => {
@@ -37,7 +42,6 @@ export async function POST(request: Request): Promise<Response> {
 
       child.on("message", (msg: any) => {
         if (msg?.type === "ready") {
-          // Worker is ready, send the request
           child.send({
             type: "run",
             message: body.message,
@@ -62,19 +66,23 @@ export async function POST(request: Request): Promise<Response> {
       });
     });
 
+    const files = result.files ?? body.files;
+    const changed = result.changed ?? [];
+    const response = result.response ?? "";
+    const error = result.error;
+
+    // Persist after successful agent call
+    if (!error) {
+      saveState({ files, branches: body.branches, activeId: body.activeId });
+    }
+
     console.log(
       `[agent] message="${body.message.slice(0, 60)}" ` +
-        `changed=${result.changed?.length ?? 0} ` +
-        `time=${Date.now() - startTime}ms ` +
-        `${result.error ? "error=" + result.error : ""}`
+        `changed=${changed.length} time=${Date.now() - startTime}ms ` +
+        `${error ? "error=" + error : ""}`
     );
 
-    return Response.json({
-      files: result.files ?? body.files,
-      changed: result.changed ?? [],
-      response: result.response ?? "",
-      error: result.error,
-    });
+    return Response.json({ files, changed, response, error });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[agent] fatal:", msg);
